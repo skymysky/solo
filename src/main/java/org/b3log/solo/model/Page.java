@@ -1,26 +1,27 @@
 /*
- * Copyright (c) 2010-2017, b3log.org & hacpai.com
+ * Solo - A small and beautiful blogging system written in Java.
+ * Copyright (c) 2010-present, b3log.org
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package org.b3log.solo.model;
-
 
 /**
  * This class defines all page model relevant keys.
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
- * @version 1.0.0.5, Apr 29, 2012
+ * @version 1.2.0.0, Apr 19, 2019
  * @since 0.3.1
  */
 public final class Page {
@@ -41,19 +42,9 @@ public final class Page {
     public static final String PAGE_TITLE = "pageTitle";
 
     /**
-     * Key of content.
-     */
-    public static final String PAGE_CONTENT = "pageContent";
-
-    /**
      * Key of order.
      */
     public static final String PAGE_ORDER = "pageOrder";
-
-    /**
-     * Key of comment count.
-     */
-    public static final String PAGE_COMMENT_COUNT = "pageCommentCount";
 
     /**
      * Key of permalink.
@@ -61,61 +52,34 @@ public final class Page {
     public static final String PAGE_PERMALINK = "pagePermalink";
 
     /**
-     * Key of comments.
-     */
-    public static final String PAGE_COMMENTS_REF = "pageComments";
-
-    /**
-     * Key of comment-able.
-     */
-    public static final String PAGE_COMMENTABLE = "pageCommentable";
-
-    /**
-     * Key of page type.
-     * 
+     * Key of open target.
      * <p>
      * Available values:
-     *   <ul>
-     *     <li>link</li>
-     *     No contents (pageContent), if users clicked, just jump to the given address specified by the permalink.
-     *     <li>page</li>
-     *     A normal customized page.
-     *   </ul>
-     * </p>
-     */
-    public static final String PAGE_TYPE = "pageType";
-
-    /**
-     * Key of open target.
-     * 
-     * <p>
-     * Available values: 
-     *   <ul>
-     *     <li>_blank</li>
-     *     Opens the linked document in a new window or tab.
-     *     <li>_self</li>
-     *     Opens the linked document in the same frame as it was clicked (this is default).
-     *     <li>_parent</li>
-     *     Opens the linked document in the parent frame.
-     *     <li>_top</li>
-     *     Opens the linked document in the full body of the window.
-     *     <li><i>frame name</i></li>
-     *     Opens the linked document in a named frame.
-     *   </ul>
+     * <ul>
+     * <li>_blank</li>
+     * Opens the linked document in a new window or tab.
+     * <li>_self</li>
+     * Opens the linked document in the same frame as it was clicked (this is default).
+     * <li>_parent</li>
+     * Opens the linked document in the parent frame.
+     * <li>_top</li>
+     * Opens the linked document in the full body of the window.
+     * <li><i>frame name</i></li>
+     * Opens the linked document in a named frame.
+     * </ul>
      * See <a href="http://www.w3schools.com/tags/att_a_target.asp">here</a> for more details.
      * </p>
      */
     public static final String PAGE_OPEN_TARGET = "pageOpenTarget";
 
     /**
-     * Key of page editor type.
-     * 
-     * @see Preference#EDITOR_TYPE
+     * Key of icon URL.
      */
-    public static final String PAGE_EDITOR_TYPE = "pageEditorType";
+    public static final String PAGE_ICON = "pageIcon";
 
     /**
-     * Private default constructor.
+     * Private constructor.
      */
-    private Page() {}
+    private Page() {
+    }
 }

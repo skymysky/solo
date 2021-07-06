@@ -1,56 +1,64 @@
 /*
- * Copyright (c) 2010-2017, b3log.org & hacpai.com
+ * Solo - A small and beautiful blogging system written in Java.
+ * Copyright (c) 2010-present, b3log.org
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package org.b3log.solo.util;
 
+import com.vladsch.flexmark.ext.autolink.AutolinkExtension;
+import com.vladsch.flexmark.ext.gfm.strikethrough.StrikethroughExtension;
+import com.vladsch.flexmark.ext.gfm.tasklist.TaskListExtension;
+import com.vladsch.flexmark.ext.tables.TablesExtension;
 import com.vladsch.flexmark.html.HtmlRenderer;
-import com.vladsch.flexmark.profiles.pegdown.Extensions;
-import com.vladsch.flexmark.profiles.pegdown.PegdownOptionsAdapter;
-import com.vladsch.flexmark.util.options.DataHolder;
+import com.vladsch.flexmark.util.data.DataHolder;
+import com.vladsch.flexmark.util.data.MutableDataSet;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.StringUtils;
-import org.b3log.latke.ioc.LatkeBeanManagerImpl;
+import org.b3log.latke.Latkes;
+import org.b3log.latke.ioc.BeanManager;
 import org.b3log.latke.logging.Level;
 import org.b3log.latke.logging.Logger;
 import org.b3log.latke.service.LangPropsService;
-import org.b3log.latke.service.LangPropsServiceImpl;
 import org.b3log.latke.util.Callstacks;
 import org.b3log.latke.util.Stopwatchs;
-import org.b3log.latke.util.Strings;
+import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.nodes.Node;
 import org.jsoup.parser.Parser;
-import org.jsoup.select.Elements;
+import org.jsoup.safety.Whitelist;
+import org.jsoup.select.NodeVisitor;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 
 /**
  * <a href="http://en.wikipedia.org/wiki/Markdown">Markdown</a> utilities.
  * <p>
- * Uses the <a href="https://github.com/chjj/marked">marked</a> as the processor, if not found this command, try
+ * Uses the <a href="https://github.com/b3log/markdown-http">markdown-http</a> as the processor, if not found this command, try
  * built-in <a href="https://github.com/vsch/flexmark-java">flexmark</a> instead.
  * </p>
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
- * @version 2.2.0.2, Jul 3, 2017
+ * @version 2.3.1.10, Sep 23, 2019
  * @since 0.4.5
  */
 public final class Markdowns {
@@ -61,23 +69,25 @@ public final class Markdowns {
     private static final Logger LOGGER = Logger.getLogger(Markdowns.class);
 
     /**
-     * Language service.
+     * Markdown cache.
      */
-    private static final LangPropsService LANG_PROPS_SERVICE
-            = LatkeBeanManagerImpl.getInstance().getReference(LangPropsServiceImpl.class);
+    private static final Map<String, JSONObject> MD_CACHE = new ConcurrentHashMap<>();
 
     /**
      * Markdown to HTML timeout.
      */
-    private static final int MD_TIMEOUT = 2000;
+    private static final int MD_TIMEOUT = 10000;
 
     /**
      * Built-in MD engine options.
      */
-
-    private static final DataHolder OPTIONS = PegdownOptionsAdapter.flexmarkOptions(
-            Extensions.ALL_OPTIONALS | Extensions.ALL_WITH_OPTIONALS
-    );
+    private static final DataHolder OPTIONS = new MutableDataSet().
+            set(com.vladsch.flexmark.parser.Parser.EXTENSIONS, Arrays.asList(
+                    TablesExtension.create(),
+                    TaskListExtension.create(),
+                    StrikethroughExtension.create(),
+                    AutolinkExtension.create())).
+            set(HtmlRenderer.SOFT_BREAK, "<br />\n");
 
     /**
      * Built-in MD engine parser.
@@ -91,47 +101,29 @@ public final class Markdowns {
     private static final HtmlRenderer RENDERER = HtmlRenderer.builder(OPTIONS).build();
 
     /**
-     * Marked engine serve path.
+     * Lute engine serve path. https://github.com/b3log/lute-http
      */
-    private static final String MARKED_ENGINE_URL = "http://localhost:8250";
+    public static String LUTE_ENGINE_URL = "http://localhost:8249";
 
     /**
-     * Whether marked is available.
+     * Whether Lute is available.
      */
-    public static boolean MARKED_AVAILABLE;
-
-    static {
-        try {
-            final URL url = new URL(MARKED_ENGINE_URL);
-            final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setDoOutput(true);
-
-            final OutputStream outputStream = conn.getOutputStream();
-            IOUtils.write("Solo 大法好", outputStream, "UTF-8");
-            IOUtils.closeQuietly(outputStream);
-
-            final InputStream inputStream = conn.getInputStream();
-            final String html = IOUtils.toString(inputStream, "UTF-8");
-            IOUtils.closeQuietly(inputStream);
-
-            conn.disconnect();
-
-            MARKED_AVAILABLE = StringUtils.contains(html, "<p>Solo 大法好</p>");
-
-            if (MARKED_AVAILABLE) {
-                LOGGER.log(Level.INFO, "[marked] is available, uses it for markdown processing");
-            } else {
-                LOGGER.log(Level.INFO, "[marked] is not available, uses built-in [flexmark] for markdown processing");
-            }
-        } catch (final Exception e) {
-            LOGGER.log(Level.INFO, "[marked] is not available caused by [" + e.getMessage() + "], uses built-in [flexmark] for markdown processing");
-        }
-    }
+    public static boolean LUTE_AVAILABLE;
 
     /**
-     * Private constructor.
+     * Cleans the specified HTML.
+     *
+     * @param html the specified HTML
+     * @return html
      */
-    private Markdowns() {
+    public static String clean(final String html) {
+        final Whitelist whitelist = Whitelist.relaxed();
+        // 允许代码块语言高亮信息
+        whitelist.addAttributes("pre", "class").
+                addAttributes("div", "class").
+                addAttributes("span", "class").
+                addAttributes("code", "class");
+        return Jsoup.clean(html, whitelist);
     }
 
     /**
@@ -142,9 +134,16 @@ public final class Markdowns {
      * 'markdownErrorLabel' if exception
      */
     public static String toHTML(final String markdownText) {
-        if (Strings.isEmptyOrNull(markdownText)) {
+        if (StringUtils.isBlank(markdownText)) {
             return "";
         }
+
+        final String cachedHTML = getHTML(markdownText);
+        if (null != cachedHTML) {
+            return cachedHTML;
+        }
+
+        final LangPropsService langPropsService = BeanManager.getInstance().getReference(LangPropsService.class);
 
         final ExecutorService pool = Executors.newSingleThreadExecutor();
         final long[] threadId = new long[1];
@@ -152,24 +151,82 @@ public final class Markdowns {
         final Callable<String> call = () -> {
             threadId[0] = Thread.currentThread().getId();
 
-            String html = LANG_PROPS_SERVICE.get("contentRenderFailedLabel");
-
-            if (MARKED_AVAILABLE) {
-                html = toHtmlByMarked(markdownText);
-                if (!StringUtils.startsWith(html, "<p>")) {
-                    html = "<p>" + html + "</p>";
+            String html = null;
+            if (LUTE_AVAILABLE) {
+                try {
+                    html = toHtmlByLute(markdownText);
+                } catch (final Exception e) {
+                    LOGGER.log(Level.WARN, "Failed to use Lute [" + LUTE_ENGINE_URL + "] for markdown [md=" + StringUtils.substring(markdownText, 0, 256) + "]: " + e.getMessage());
                 }
-            } else {
-                com.vladsch.flexmark.ast.Node document = PARSER.parse(markdownText);
-                html = RENDERER.render(document);
-                if (!StringUtils.startsWith(html, "<p>")) {
-                    html = "<p>" + html + "</p>";
-                }
-
-                html = formatMarkdown(html);
             }
 
-            return html;
+            if (StringUtils.isBlank(html)) {
+                html = toHtmlByFlexmark(markdownText);
+            }
+
+            if (!StringUtils.startsWith(html, "<p>")) {
+                html = "<p>" + html + "</p>";
+            }
+
+            final Document doc = Jsoup.parse(html);
+            doc.select("a").forEach(a -> {
+                final String src = a.attr("href");
+                if (!StringUtils.startsWithIgnoreCase(src, Latkes.getServePath()) && !StringUtils.startsWithIgnoreCase(src, "#")) {
+                    a.attr("target", "_blank");
+                }
+                a.removeAttr("id");
+            });
+
+
+            final List<Node> toRemove = new ArrayList<>();
+            doc.traverse(new NodeVisitor() {
+                @Override
+                public void head(final org.jsoup.nodes.Node node, int depth) {
+                    if (node instanceof org.jsoup.nodes.TextNode) {
+                        final org.jsoup.nodes.TextNode textNode = (org.jsoup.nodes.TextNode) node;
+                        final org.jsoup.nodes.Node parent = textNode.parent();
+
+                        if (parent instanceof Element) {
+                            final Element parentElem = (Element) parent;
+                            if (parentElem.tagName().equals("code") || parentElem.tagName().equals("pre")) {
+                                return;
+                            }
+
+                            if (parentElem.tagName().equals("span") && StringUtils.startsWithIgnoreCase(parentElem.attr("class"), "hljs")) {
+                                return;
+                            }
+
+                            String text = textNode.getWholeText();
+                            text = Emotions.convert(text);
+                            if (text.contains("@<a href=") || text.contains("<img")) {
+                                final List<org.jsoup.nodes.Node> nodes = Parser.parseFragment(text, parentElem, "");
+                                final int index = textNode.siblingIndex();
+                                parentElem.insertChildren(index, nodes);
+                                toRemove.add(node);
+                            } else {
+                                textNode.text(text);
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void tail(org.jsoup.nodes.Node node, int depth) {
+                }
+            });
+
+            toRemove.forEach(Node::remove);
+
+            doc.outputSettings().prettyPrint(false);
+
+            String ret = doc.select("body").html();
+            ret = StringUtils.trim(ret);
+            ret = Images.qiniuImgProcessing(ret);
+
+            // cache it
+            putHTML(markdownText, ret);
+
+            return ret;
         };
 
         Stopwatchs.start("Md to HTML");
@@ -197,86 +254,68 @@ public final class Markdowns {
             Stopwatchs.end();
         }
 
-        return LANG_PROPS_SERVICE.get("contentRenderFailedLabel");
+        return langPropsService.get("contentRenderFailedLabel");
     }
 
-    private static String toHtmlByMarked(final String markdownText) throws Exception {
-        final URL url = new URL(MARKED_ENGINE_URL);
+    private static String toHtmlByLute(final String markdownText) throws Exception {
+        final URL url = new URL(LUTE_ENGINE_URL);
         final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(100);
+        conn.setReadTimeout(1000);
         conn.setDoOutput(true);
 
-        final OutputStream outputStream = conn.getOutputStream();
-        IOUtils.write(markdownText, outputStream, "UTF-8");
-        IOUtils.closeQuietly(outputStream);
+        try (final OutputStream outputStream = conn.getOutputStream()) {
+            IOUtils.write(markdownText, outputStream, "UTF-8");
+        }
 
-        final InputStream inputStream = conn.getInputStream();
-        final String html = IOUtils.toString(inputStream, "UTF-8");
-        IOUtils.closeQuietly(inputStream);
+        String ret;
+        try (final InputStream inputStream = conn.getInputStream()) {
+            ret = IOUtils.toString(inputStream, "UTF-8");
+        }
 
-        //conn.disconnect();
+        conn.disconnect();
 
-        return html;
+        return ret;
+    }
+
+    private static String toHtmlByFlexmark(final String markdownText) {
+        com.vladsch.flexmark.util.ast.Node document = PARSER.parse(markdownText);
+
+        return RENDERER.render(document);
     }
 
     /**
-     * See https://github.com/b3log/symphony/issues/306.
+     * Gets HTML for the specified markdown text.
      *
-     * @param markdownText
-     * @return
+     * @param markdownText the specified markdown text
+     * @return HTML
      */
-    private static String formatMarkdown(final String markdownText) {
-        String ret = markdownText;
-
-        final Document doc = Jsoup.parse(markdownText, "", Parser.htmlParser());
-        final Elements tagA = doc.select("a");
-
-        for (final Element aTagA : tagA) {
-            final String search = aTagA.attr("href");
-            final String replace = StringUtils.replace(search, "_", "[downline]");
-
-            ret = StringUtils.replace(ret, search, replace);
+    private static String getHTML(final String markdownText) {
+        final String hash = DigestUtils.md5Hex(markdownText);
+        final JSONObject value = MD_CACHE.get(hash);
+        if (null == value) {
+            return null;
         }
 
-        final Elements tagImg = doc.select("img");
-        for (final Element aTagImg : tagImg) {
-            final String search = aTagImg.attr("src");
-            final String replace = StringUtils.replace(search, "_", "[downline]");
+        return value.optString("data");
+    }
 
-            ret = StringUtils.replace(ret, search, replace);
-        }
+    /**
+     * Puts the specified HTML into cache.
+     *
+     * @param markdownText the specified markdown text
+     * @param html         the specified HTML
+     */
+    private static void putHTML(final String markdownText, final String html) {
+        final String hash = DigestUtils.md5Hex(markdownText);
+        final JSONObject value = new JSONObject();
+        value.put("data", html);
+        MD_CACHE.put(hash, value);
+    }
 
-        final Elements tagCode = doc.select("code");
-        for (final Element aTagCode : tagCode) {
-            final String search = aTagCode.html();
-            final String replace = StringUtils.replace(search, "_", "[downline]");
-
-            ret = StringUtils.replace(ret, search, replace);
-        }
-
-        String[] rets = ret.split("\n");
-        for (final String temp : rets) {
-            final String[] toStrong = StringUtils.substringsBetween(temp, "**", "**");
-            final String[] toEm = StringUtils.substringsBetween(temp, "_", "_");
-
-            if (toStrong != null && toStrong.length > 0) {
-                for (final String strong : toStrong) {
-                    final String search = "**" + strong + "**";
-                    final String replace = "<strong>" + strong + "</strong>";
-                    ret = StringUtils.replace(ret, search, replace);
-                }
-            }
-
-            if (toEm != null && toEm.length > 0) {
-                for (final String em : toEm) {
-                    final String search = "_" + em + "_";
-                    final String replace = "<em>" + em + "<em>";
-                    ret = StringUtils.replace(ret, search, replace);
-                }
-            }
-        }
-
-        ret = StringUtils.replace(ret, "[downline]", "_");
-
-        return ret;
+    /**
+     * Private constructor.
+     */
+    private Markdowns() {
     }
 }

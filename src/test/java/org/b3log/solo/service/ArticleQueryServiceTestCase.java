@@ -1,23 +1,23 @@
 /*
- * Copyright (c) 2010-2017, b3log.org & hacpai.com
+ * Solo - A small and beautiful blogging system written in Java.
+ * Copyright (c) 2010-present, b3log.org
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package org.b3log.solo.service;
 
-import java.util.List;
 import org.b3log.latke.Keys;
-import org.b3log.latke.model.User;
 import org.b3log.solo.AbstractTestCase;
 import org.b3log.solo.model.Article;
 import org.b3log.solo.model.Tag;
@@ -25,38 +25,48 @@ import org.json.JSONObject;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import java.util.List;
+
 /**
  * {@link ArticleQueryService} test case.
  *
  * @author <a href="http://88250.b3log.org">Liang Ding</a>
- * @version 1.0.0.3, Nov 9, 2016
+ * @version 1.1.0.2, Jan 28, 2019
  */
 @Test(suiteName = "service")
 public class ArticleQueryServiceTestCase extends AbstractTestCase {
 
     /**
      * Init.
-     * 
-     * @throws Exception exception
      */
     @Test
-    public void init() throws Exception {
-        final InitService initService = getInitService();
+    public void init() {
+        super.init();
+    }
 
-        final JSONObject requestJSONObject = new JSONObject();
-        requestJSONObject.put(User.USER_EMAIL, "test@gmail.com");
-        requestJSONObject.put(User.USER_NAME, "Admin");
-        requestJSONObject.put(User.USER_PASSWORD, "pass");
+    /**
+     * Search articles.
+     *
+     * @throws Exception exception
+     */
+    @Test(dependsOnMethods = "init")
+    public void searchKeyword() throws Exception {
+        final ArticleQueryService articleQueryService = getArticleQueryService();
 
-        initService.init(requestJSONObject);
+        JSONObject result = articleQueryService.searchKeyword("初始化", 1, 20);
+        Assert.assertNotNull(result);
+        List<JSONObject> articles = (List<JSONObject>) result.opt(Article.ARTICLES);
+        Assert.assertEquals(articles.size(), 1);
 
-        final UserQueryService userQueryService = getUserQueryService();
-        Assert.assertNotNull(userQueryService.getUserByEmail("test@gmail.com"));
+        result = articleQueryService.searchKeyword("不存在的", 1, 20);
+        Assert.assertNotNull(result);
+        articles = (List<JSONObject>) result.opt(Article.ARTICLES);
+        Assert.assertEquals(articles.size(), 0);
     }
 
     /**
      * Get Recent Articles.
-     * 
+     *
      * @throws Exception exception
      */
     @Test(dependsOnMethods = "init")
@@ -69,7 +79,7 @@ public class ArticleQueryServiceTestCase extends AbstractTestCase {
 
     /**
      * Get Article.
-     * 
+     *
      * @throws Exception exception
      */
     @Test(dependsOnMethods = "getRecentArticles")
@@ -88,7 +98,7 @@ public class ArticleQueryServiceTestCase extends AbstractTestCase {
 
     /**
      * Get Article By Id.
-     * 
+     *
      * @throws Exception exception
      */
     @Test(dependsOnMethods = "getRecentArticles")
@@ -102,12 +112,11 @@ public class ArticleQueryServiceTestCase extends AbstractTestCase {
         final JSONObject article = articleQueryService.getArticleById(articleId);
 
         Assert.assertNotNull(article);
-        Assert.assertNotNull(article.getString(Article.ARTICLE_VIEW_COUNT), "");
     }
 
     /**
      * Get Article Content.
-     * 
+     *
      * @throws Exception exception
      */
     @Test(dependsOnMethods = "getRecentArticles")
@@ -125,7 +134,7 @@ public class ArticleQueryServiceTestCase extends AbstractTestCase {
 
     /**
      * Get Articles By Tag.
-     * 
+     *
      * @throws Exception exception
      */
     @Test(dependsOnMethods = "init")
@@ -141,14 +150,15 @@ public class ArticleQueryServiceTestCase extends AbstractTestCase {
         final String tagId = tag.getString(Keys.OBJECT_ID);
 
         final ArticleQueryService articleQueryService = getArticleQueryService();
-        final List<JSONObject> articles = articleQueryService.getArticlesByTag(tagId, 1, Integer.MAX_VALUE);
-        Assert.assertNotNull(articles);
+        final JSONObject articlesResult = articleQueryService.getArticlesByTag(tagId, 1, Integer.MAX_VALUE);
+        Assert.assertNotNull(articlesResult);
+        final List<JSONObject> articles = (List<JSONObject>) articlesResult.opt(Keys.RESULTS);
         Assert.assertEquals(articles.size(), 1);
     }
 
     /**
      * Get Archives By Archive Date.
-     * 
+     *
      * @throws Exception exception
      */
     @Test(dependsOnMethods = "init")
